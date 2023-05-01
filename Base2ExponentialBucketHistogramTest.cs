@@ -39,7 +39,7 @@ public class Base2ExponentialBucketHistogramTest
         this.output = output;
     }
 
-    public static IEnumerable<object[]> Scales =>
+    public static IEnumerable<object[]> TestScales =>
         new List<object[]>
         {
             new object[] { -11 },
@@ -75,6 +75,38 @@ public class Base2ExponentialBucketHistogramTest
             new object[] { 19 },
             new object[] { 20 },
         };
+
+    [Theory]
+    [MemberData(nameof(TestScales))]
+    public void LowerBoundaryMaxIndex(int scale)
+    {
+        var histogram = new Base2ExponentialBucketHistogram(scale: scale);
+        var maxIndex = GetMaxIndex(scale);
+        Assert.True(double.IsFinite(histogram.LowerBoundary(maxIndex)));
+    }
+
+    [Theory]
+    [MemberData(nameof(TestScales))]
+    public void LowerBoundaryPowersOfTwoRoundTripTest(int scale)
+    {
+        var histogram = new Base2ExponentialBucketHistogram(scale: scale);
+        var indexesPerPowerOf2 = scale > 0 ? 1 << scale : 1;
+        var maxIndex = GetMaxIndex(scale);
+
+        for (var index = 0; index < maxIndex; index += indexesPerPowerOf2)
+        {
+            var lowerBound = histogram.LowerBoundary(index);
+            var roundTrip = histogram.MapToIndex(lowerBound);
+            Assert.Equal(index, roundTrip + 1);
+        }
+    }
+
+    private static int GetMaxIndex(int scale)
+    {
+        return scale > 0
+            ? (MaxExponent << scale) | ((1 << scale) - 1)
+            : MaxExponent >>> -scale;
+    }
 
     [Fact]
     public void PowerOfTwoPositiveScales()
@@ -122,8 +154,8 @@ public class Base2ExponentialBucketHistogramTest
     }
 
     [Theory]
-    [MemberData(nameof(Scales))]
-    public void TestScales(int scale)
+    [MemberData(nameof(TestScales))]
+    public void Tests(int scale)
     {
         var squareRootOf2 = Math.Pow(2, .5);
 
@@ -190,14 +222,6 @@ public class Base2ExponentialBucketHistogramTest
                 }
             }
         }
-    }
-
-    // For numbers up to Double.MAX_VALUE
-    public static int GetMaxIndex(int scale) {
-        // Scale > 0: max exponent followed by max subbucket index.
-        // Scale <= 0: max exponent with -scale bits truncated.
-        return scale > 0 ? ((MaxExponent << scale) | ((1 << scale) - 1))
-                : (MaxExponent >>> -scale);
     }
 
     // For numbers down to Double.MIN_NORMAL
