@@ -19,17 +19,25 @@ using System;
 using System.Collections.Generic;
 using OpenTelemetry.Tests;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace OpenTelemetry.Metrics.Tests;
 
 public class Base2ExponentialBucketHistogramTest
 {
+    private readonly ITestOutputHelper output;
+
     // ~2.2250738585072014E-308 (minimum normal positive, 2 ^ -1022)
     private static double MinNormal = IEEE754Double.FromString("0 00000000001 0000000000000000000000000000000000000000000000000000").DoubleValue;
 
     private const int MinExponent = -1022;
     private const int MaxExponent = 1023;
     private const int MinSubnormalExponent = MinExponent - 52;
+
+    public Base2ExponentialBucketHistogramTest(ITestOutputHelper output)
+    {
+        this.output = output;
+    }
 
     public static IEnumerable<object[]> Scales =>
         new List<object[]>
@@ -67,6 +75,51 @@ public class Base2ExponentialBucketHistogramTest
             new object[] { 19 },
             new object[] { 20 },
         };
+
+    [Fact]
+    public void PowerOfTwoPositiveScales()
+    {
+        const int MinExponent = -1022;
+        const int MaxExponent = 1023;
+
+        for (var scale = 1; scale <= 20; ++scale)
+        {
+            var histogram = new Base2ExponentialBucketHistogram(scale: scale);
+
+            var indexesPerPowerOf2 = 1 << scale;
+            
+            var minIndexSubnormal = (MinSubnormalExponent << scale) - 1;
+            var minIndexNormal = (MinExponent << scale) - 1;
+            var maxIndex = MaxExponent << scale | ((1 << scale) - 1);
+
+            output.WriteLine($"Scale: {scale}, IndexesPerPow2: {indexesPerPowerOf2}, MaxIndex: {maxIndex}, MinIndexNormal: {minIndexNormal}, MinIndexSubnormal: {minIndexSubnormal}");
+
+            Assert.Equal(double.Epsilon, histogram.LowerBoundary(minIndexSubnormal));
+
+            var indexOfMinNormal = histogram.MapToIndex(MinNormal);
+            Assert.Equal(minIndexNormal, indexOfMinNormal);
+
+            // output.WriteLine(IEEE754Double.FromDouble(Math.BitIncrement(histogram.LowerBoundary(minIndexNormal))).ToString());
+            // Assert.Equal(MinNormal, histogram.LowerBoundary(minIndexNormal));
+
+            Assert.True(double.IsFinite(histogram.LowerBoundary(maxIndex)));
+
+            var exp = 0;
+            for (var index = 0; index < maxIndex; index += indexesPerPowerOf2)
+            {
+                var expected = 1L << exp++;
+                var lowerBound = histogram.LowerBoundary(index);
+                
+                var incremented = Math.BitIncrement(lowerBound);
+                var reversed = histogram.MapToIndex(incremented);
+
+                output.WriteLine($"Index: {index}, Reversed: {reversed}, Expected: {expected}, Actual: {lowerBound}, Incremented: {incremented}");
+
+                // Assert.Equal(index, reversed);
+                Assert.Equal(expected, lowerBound);
+            }
+        }
+    }
 
     [Theory]
     [MemberData(nameof(Scales))]
@@ -140,7 +193,7 @@ public class Base2ExponentialBucketHistogramTest
     }
 
     // For numbers up to Double.MAX_VALUE
-    private static int GetMaxIndex(int scale) {
+    public static int GetMaxIndex(int scale) {
         // Scale > 0: max exponent followed by max subbucket index.
         // Scale <= 0: max exponent with -scale bits truncated.
         return scale > 0 ? ((MaxExponent << scale) | ((1 << scale) - 1))
@@ -148,12 +201,12 @@ public class Base2ExponentialBucketHistogramTest
     }
 
     // For numbers down to Double.MIN_NORMAL
-    private static int GetMinIndexNormal(int scale) {
+    public static int GetMinIndexNormal(int scale) {
         return GetMinIndex(scale, MinExponent);
     }
 
     // For numbers down to Double.MIN_VALUE
-    private static int GetMinIndex(int scale) {
+    public static int GetMinIndex(int scale) {
         return GetMinIndex(scale, MinSubnormalExponent);
     }
 
