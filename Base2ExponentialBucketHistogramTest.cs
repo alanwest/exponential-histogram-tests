@@ -93,7 +93,7 @@ public class Base2ExponentialBucketHistogramTest
         var indexesPerPowerOf2 = scale > 0 ? 1 << scale : 1;
         var maxIndex = GetMaxIndex(scale);
 
-        for (var index = 0; index < maxIndex; index += indexesPerPowerOf2)
+        for (var index = 0; index <= maxIndex; index += indexesPerPowerOf2)
         {
             var lowerBound = histogram.LowerBoundary(index);
             var roundTrip = histogram.MapToIndex(lowerBound);
