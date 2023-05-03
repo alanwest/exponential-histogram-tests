@@ -91,13 +91,91 @@ public class Base2ExponentialBucketHistogramTest
     {
         var histogram = new Base2ExponentialBucketHistogram(scale: scale);
         var indexesPerPowerOf2 = scale > 0 ? 1 << scale : 1;
+        var minIndex = histogram.MapToIndex(double.Epsilon);
         var maxIndex = GetMaxIndex(scale);
 
+        // Check indexes >= 0
         for (var index = 0; index <= maxIndex; index += indexesPerPowerOf2)
         {
             var lowerBound = histogram.LowerBoundary(index);
             var roundTrip = histogram.MapToIndex(lowerBound);
             Assert.Equal(index, roundTrip + 1);
+
+            var match = false;
+            for (var offset = 1; offset <= 1127; ++offset)
+            {
+                var lowerBoundDelta = lowerBound;
+                for (var j = 0; j <= offset; ++j)
+                {
+                    lowerBoundDelta = double.BitIncrement(lowerBoundDelta);
+                }
+
+                roundTrip = histogram.MapToIndex(lowerBoundDelta);
+                if (index == roundTrip)
+                {
+                    // var delta = lowerBoundDelta - lowerBound;
+                    // output.WriteLine($"Scale={scale}, Ops={offset}, Index={index}, Delta={delta}");
+                    match = true;
+                    break;
+                }
+            }
+
+            Assert.True(match);
+        }
+
+        // Check indexes < 0
+        for (var index = minIndex; index < 0; index += indexesPerPowerOf2)
+        {
+            var lowerBound = histogram.LowerBoundary(index);
+
+            if (scale <= 0)
+            {
+                // TODO: For scales <= 0, LowerBoundary returns 0 instead of double.Epsilon for the minimum bucket index.
+                // Should LowerBoundary just return double.Epsilon in this case?
+                lowerBound = index == minIndex && lowerBound == 0
+                    ? double.Epsilon
+
+                    // TODO: All negative scales except -11 require this adjustment. Why?
+                    : (scale != -11 ? double.BitIncrement(lowerBound) : lowerBound);
+            }
+
+            var roundTrip = histogram.MapToIndex(lowerBound);
+
+            if (scale > 0)
+            {
+                if (index != roundTrip)
+                {
+                    int offset = 1;
+                    for (var i = 0; offset <= 512; offset = 1 << ++i)
+                    {
+                        var lowerBoundDelta = lowerBound;
+                        for (var j = 1; j <= offset; ++j)
+                        {
+                            lowerBoundDelta = double.BitIncrement(lowerBoundDelta);
+                        }
+
+                        var newRoundTrip = histogram.MapToIndex(lowerBoundDelta);
+
+                        // Check offset + 1
+                        if (index != newRoundTrip)
+                        {
+                            // offset++;
+                            lowerBoundDelta = double.BitIncrement(lowerBoundDelta);
+                            newRoundTrip = histogram.MapToIndex(lowerBoundDelta);
+                        }
+
+                        if (index == newRoundTrip)
+                        {
+                            // var delta = lowerBoundDelta - lowerBound;
+                            // output.WriteLine($"Scale={scale}, Ops={offset}, Index={index}, Delta={delta}");
+                            roundTrip = newRoundTrip;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            Assert.Equal(index, roundTrip);
         }
     }
 
