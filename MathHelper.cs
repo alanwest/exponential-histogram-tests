@@ -146,12 +146,17 @@ internal static class MathHelper
 
     public static double Ln2 = Math.Log(2);
 
+#if !NET6_0_OR_GREATER
     private const double SCALEB_C1 = 8.98846567431158E+307; // 0x1p1023
     private const double SCALEB_C2 = 2.2250738585072014E-308; // 0x1p-1022
     private const double SCALEB_C3 = 9007199254740992; // 0x1p53
+#endif
 
     public static double ScaleB(double x, int n)
     {
+#if NET6_0_OR_GREATER
+        return double.ScaleB(x, n);
+#else
         // Implementation based on https://git.musl-libc.org/cgit/musl/tree/src/math/scalbln.c
         //
         // Performs the calculation x * 2^n efficiently. It constructs a double from 2^n by building
@@ -190,5 +195,35 @@ internal static class MathHelper
 
         double u = BitConverter.Int64BitsToDouble(((long)(0x3ff + n) << 52));
         return y * u;
+#endif
+    }
+
+    public static double BitIncrement(double x)
+    {
+#if NET6_0_OR_GREATER
+        return double.BitIncrement(x);
+#else
+        long bits = BitConverter.DoubleToInt64Bits(x);
+
+        if (((bits >> 32) & 0x7FF00000) >= 0x7FF00000)
+        {
+            // NaN returns NaN
+            // -Infinity returns double.MinValue
+            // +Infinity returns +Infinity
+            return (bits == unchecked((long)(0xFFF00000_00000000))) ? double.MinValue : x;
+        }
+
+        if (bits == unchecked((long)(0x80000000_00000000)))
+        {
+            // -0.0 returns double.Epsilon
+            return double.Epsilon;
+        }
+
+        // Negative values need to be decremented
+        // Positive values need to be incremented
+
+        bits += ((bits < 0) ? -1 : +1);
+        return BitConverter.Int64BitsToDouble(bits);
+#endif
     }
 }

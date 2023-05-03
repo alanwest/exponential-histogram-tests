@@ -157,20 +157,12 @@ internal sealed class Base2ExponentialBucketHistogram
     {
         if (this.Scale > 0)
         {
-#if NET6_0_OR_GREATER
-            var inverseFactor = Math.ScaleB(MathHelper.Ln2, -this.Scale);
-#else
             var inverseFactor = MathHelper.ScaleB(MathHelper.Ln2, -this.Scale);
-#endif
             return Math.Exp(index * inverseFactor);
         }
         else
         {
-#if NET6_0_OR_GREATER
-            return Math.ScaleB(1, index << -this.Scale);
-#else
             return MathHelper.ScaleB(1, index << -this.Scale);
-#endif
         }
     }
 }
