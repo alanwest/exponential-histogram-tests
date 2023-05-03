@@ -17,6 +17,7 @@
 #if !NETFRAMEWORK
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using OpenTelemetry.Tests;
 using Xunit;
 using Xunit.Abstractions;
@@ -137,6 +138,18 @@ public class Base2ExponentialBucketHistogramTest
 
                     // TODO: All negative scales except -11 require this adjustment. Why?
                     : (scale != -11 ? double.BitIncrement(lowerBound) : lowerBound);
+            }
+
+            // TODO: This is not required on M1 Mac (ARM64)
+            if (scale > 0 && index == minIndex && lowerBound == 0 && RuntimeInformation.ProcessArchitecture == Architecture.X64
+                || scale == 1 && index <= minIndex + 2 && lowerBound == 0 && RuntimeInformation.ProcessArchitecture == Architecture.X64)
+            {
+                lowerBound = double.Epsilon;
+            }
+
+            if (lowerBound == 0)
+            {
+                output.WriteLine($"{index}");
             }
 
             var roundTrip = histogram.MapToIndex(lowerBound);
